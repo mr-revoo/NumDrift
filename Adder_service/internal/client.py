@@ -9,6 +9,3 @@ def run(a, b):
         response = stub.Add(request)
         print(f"Received response: {response}")  
     return response.result
-
-if __name__ == '__main__':
-    run(181889999, 82748333)
