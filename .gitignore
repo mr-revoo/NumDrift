@@ -1,5 +1,4 @@
 .addservice/
-internal/__pycache__/
 /internal/**/*__init__.py
 /internal/**/*__pycache__/
 /internal/**/*.pyc
