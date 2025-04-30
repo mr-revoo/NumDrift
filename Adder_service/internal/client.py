@@ -8,4 +8,6 @@ def run(a, b):
         print(f"Sending request: {request}") 
         response = stub.Add(request)
         print(f"Received response: {response}")  
-    return response.result
+    return response
+
+print(run(10,20))
