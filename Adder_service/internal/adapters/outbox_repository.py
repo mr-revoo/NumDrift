@@ -2,42 +2,53 @@ from internal.adapters.database_initalizer import InitDB
 from internal.entities.outbox_message import Outbox
 from internal.utils.logger import setup_logger 
 import uuid
-logger = setup_logger('outbox.log') 
+from datetime import datetime
+
+logger = setup_logger('outbox.log')
+
 class OutBoxRepository:
-    mess:Outbox
-    def __init__(self,db:InitDB):
-       self.db = db
+    def __init__(self, db:InitDB):
+        self.db = db
+        self.mess = None
        
-    def store(self,value:int):
+    def store(self, value:int):
         query = "INSERT INTO outbox (id, value, status) VALUES (%s, %s, %s)"
         try:
-            with self.db.get_connection() as conn:
-                with conn.get_cursor() as cursor:
-                    cursor.execute(query,(self.mess.id,self.mess.payload,self.mess.status)) 
-                    logger.info("1 Row Inserted into Table")
+            with self.db.get_cursor() as cursor:
+                cursor.execute(query, (self.mess.id, value, self.mess.status))
+                logger.info(f"Row with ID {self.mess.id} inserted into outbox table")
         except Exception as e:
-            logger.info(f"Insertion Query Failed : {e}")
+            logger.error(f"Insertion Query Failed: {e}")
             
-            
-    def GetPendingMessages(self,limit):
+    def GetPendingMessages(self, limit):
         messages = []
-        query = "SELECT id, sent_at, created_at, value FROM outbox WHERE sent_at IS NULL LIMIT %s"
-        with self.db.cursor() as cursor:
-            cursor.execute(query, (limit,))
-            rows = cursor.fetchall()
-        for row in rows:
-            message = Outbox(
-                id=row[0],
-                sent_at=row[1],
-                created_at=row[2],
-                payload=row[3]
-            )
-            messages.append(message)
-        return messages
+        query = "SELECT id, sent_at, created_at, value, status FROM outbox WHERE status = 'NONPROCESSED' LIMIT %s"
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(query, (limit,))
+                rows = cursor.fetchall()
+                for row in rows:
+                    message = Outbox(
+                        id=row[0],
+                        sent_at=row[1] if row[1] else datetime.now(),
+                        created_at=row[2],
+                        payload=row[3],
+                        status=row[4]
+                    )
+                    messages.append(message)
+                return messages
+        except Exception as e:
+            logger.error(f"Failed to fetch pending messages: {e}")
+            return []
     
-    
-    def MarkAsProcessed(self,ID:uuid.uuid4):
-        query = "UPDATE outbox SET sent_at = %s where id = %s"
-        with self.db.get_cursor as cursor:
-            cursor.execute(query,(self.mess.sent_at,ID))
-            logger.info(f"Row {ID} has been Marked as processed")
+    def MarkAsProcessed(self, ID):
+        query = "UPDATE outbox SET sent_at = %s, status = %s WHERE id = %s"
+        try:
+            with self.db.get_cursor() as cursor:
+                sent_at = datetime.now()
+                cursor.execute(query, (sent_at, "PROCESSED", ID))
+                logger.info(f"Row {ID} has been marked as processed")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to mark message {ID} as processed: {e}")
+            return False

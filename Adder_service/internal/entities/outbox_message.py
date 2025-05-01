@@ -5,8 +5,8 @@ import json
 
 @dataclass
 class Outbox:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     payload: int
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     status: str = "NONPROCESSED"
     sent_at: datetime = field(default_factory=datetime.now)
     created_at: datetime = field(default_factory=datetime.now)
