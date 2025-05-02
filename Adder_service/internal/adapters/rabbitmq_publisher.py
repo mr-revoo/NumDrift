@@ -32,7 +32,7 @@ class RabbitMQPublisher:
                 if retry_count >= self.max_retries:
                     logger.error("Max retries reached. Giving up on RabbitMQ connection.")
                     raise
-                time.sleep(1)  # Wait before retrying
+                time.sleep(1)  
         return False
 
     def _ensure_connection(self):

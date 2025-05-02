@@ -10,4 +10,4 @@ def run(a, b):
         print(f"Received response: {response}")  
     return response
 
-print(run(1200,50))
+print(run(775,5))
