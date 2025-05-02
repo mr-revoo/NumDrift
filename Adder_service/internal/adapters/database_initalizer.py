@@ -38,9 +38,37 @@ class InitDB:
                 dsn=db_url
             )
             logger.info("Database connection pool created successfully")
+            
+            # Initialize database schema
+            self._init_schema()
         except psycopg2.Error as e:
             logger.error(f"Failed to create connection pool: {e}")
             raise RuntimeError(f"Failed to create connection pool: {e}")
+
+    def _init_schema(self):
+        """Initialize database schema by executing SQL scripts"""
+        try:
+            conn = self.get_connection()
+            try:
+                with conn.cursor() as cursor:
+                    # Execute the SQL from the init_db.sql file
+                    sql_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'init_db.sql')
+                    with open(sql_file_path, 'r') as sql_file:
+                        sql_script = sql_file.read()
+                    
+                    logger.info(f"Executing SQL script from {sql_file_path}")
+                    cursor.execute(sql_script)
+                    conn.commit()
+                    logger.info("Database schema initialized successfully")
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Failed to initialize database schema: {e}")
+                raise
+            finally:
+                self.pool.putconn(conn)
+        except Exception as e:
+            logger.error(f"Failed to initialize database schema: {e}")
+            raise
 
     def get_connection(self):
         """Get a raw connection from the pool."""

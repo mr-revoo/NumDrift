@@ -9,27 +9,24 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY internal/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Install psycopg2 and pika explicitly
-RUN pip install --no-cache-dir psycopg2-binary pika python-dotenv protobuf grpcio-tools
+# Install dependencies with specific compatible versions
+RUN pip install --no-cache-dir grpcio grpcio-tools protobuf
+RUN pip install --no-cache-dir psycopg2-binary pika python-dotenv
 
 # Copy the rest of the application
 COPY . .
 
-# Update server.py to listen on all interfaces instead of just localhost
-RUN sed 's/server.add_insecure_port(.localhost:50051.)/server.add_insecure_port("0.0.0.0:50051")/' server/server.py > server/server_tmp.py \
-    && mv server/server_tmp.py server/server.py
+# Update server.py to listen on all interfaces and use rabbitmq host
+RUN sed -i 's/server.add_insecure_port(.localhost:50051.)/server.add_insecure_port("0.0.0.0:50051")/' server/server.py && \
+    sed -i 's/RabbitMQPublisher(queuename="sums")/RabbitMQPublisher(queuename="sums", host="rabbitmq")/' server/server.py && \
+    sed -i 's/Server started on localhost:50051/Server started on 0.0.0.0:50051/' server/server.py
 
 # Expose the gRPC port
 EXPOSE 50051
 
 # Set the Python path for module imports
 ENV PYTHONPATH "${PYTHONPATH}:/app"
-
-# Create a non-root user to run the service
-RUN useradd -m appuser
-USER appuser
 
 # Run the server
 CMD ["python", "server/server.py"] 

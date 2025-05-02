@@ -23,7 +23,7 @@ class RabbitMQPublisher:
                 logger.info(f"Connecting to RabbitMQ at {self.host}")
                 self.connection = pika.BlockingConnection(pika.ConnectionParameters(self.host))
                 self.channel = self.connection.channel()
-                self.channel.queue_declare(queue=self.queuename)
+                self.channel.queue_declare(queue=self.queuename, durable=True)
                 logger.info(f"Successfully connected to RabbitMQ and declared queue {self.queuename}")
                 return True
             except Exception as e:
@@ -43,7 +43,7 @@ class RabbitMQPublisher:
         if self.channel is None or self.channel.is_closed:
             try:
                 self.channel = self.connection.channel()
-                self.channel.queue_declare(queue=self.queuename)
+                self.channel.queue_declare(queue=self.queuename, durable=True)
                 return True
             except Exception as e:
                 logger.error(f"Failed to create channel: {e}")
