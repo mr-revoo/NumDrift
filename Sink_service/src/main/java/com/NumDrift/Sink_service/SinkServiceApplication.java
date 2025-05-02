@@ -4,79 +4,64 @@ import com.NumDrift.Sink_service.services.Consumer;
 import com.NumDrift.Sink_service.services.UpdateNumber;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 
 import java.io.IOException;
-import java.util.concurrent.TimeoutException;
 
 @SpringBootApplication
 public class SinkServiceApplication {
 	private static final Logger logger = LoggerFactory.getLogger(SinkServiceApplication.class);
-	private Consumer consumer;
 	private final UpdateNumber updateNumber;
-	private Thread connectorThread;
-	private volatile boolean running = true;
 
-	public SinkServiceApplication() throws IOException {
-		this.updateNumber = new UpdateNumber();
+	@Autowired
+	public SinkServiceApplication(UpdateNumber updateNumber) {
+		this.updateNumber = updateNumber;
+		logger.info("SinkServiceApplication initialized");
 	}
 
 	public static void main(String[] args) {
-		ConfigurableApplicationContext context = SpringApplication.run(SinkServiceApplication.class, args);
-		SinkServiceApplication app = context.getBean(SinkServiceApplication.class);
-		// Give Spring a moment to initialize the consumer bean
-		app.startConnector();
-		
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			try {
-				app.shutdown();
-			} catch (Exception e) {
-				logger.error("Error during shutdown", e);
-			}
-		}));
+		SpringApplication.run(SinkServiceApplication.class, args);
+		logger.info("SinkService application started");
 	}
 
 	@Bean
-	public Consumer consumer() throws IOException, TimeoutException {
-		consumer = new Consumer();
-		consumer.start();
-		return consumer;
-	}
-
-	public void startConnector() {
-		connectorThread = new Thread(() -> {
-			while (running) {
-				try {
-					int number = consumer.getNextNumber();
-					updateNumber.updateNumber(number);
-					
-					System.out.println("Number processed: " + number);
-				} catch (InterruptedException e) {
-					if (running) {
-						System.err.println("Error getting next number: " + e.getMessage());
+	@Profile("!test") // Skip in test profile
+	public CommandLineRunner initRabbitMQ() {
+		return args -> {
+			logger.info("Attempting to initialize RabbitMQ connection");
+			try {
+				Consumer consumer = new Consumer();
+				consumer.start();
+				
+				// Start processing in a separate thread
+				Thread processor = new Thread(() -> {
+					while (!Thread.currentThread().isInterrupted()) {
+						try {
+							int number = consumer.getNextNumber();
+							updateNumber.updateNumber(number);
+							logger.info("Processed number: {}", number);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+							logger.info("Processing thread interrupted");
+						} catch (Exception e) {
+							logger.error("Error processing number", e);
+						}
 					}
-				} catch (IOException e) {
-					System.err.println("Error updating number: " + e.getMessage());
-				}
+				});
+				processor.setDaemon(true);
+				processor.start();
+				
+				logger.info("RabbitMQ connection established and processing started");
+			} catch (Exception e) {
+				// Just log the error but allow application to continue
+				logger.error("Failed to connect to RabbitMQ: {}", e.getMessage());
+				logger.info("Application will continue without RabbitMQ connection");
 			}
-		});
-		
-		connectorThread.setDaemon(true);
-		connectorThread.start();
-		System.out.println("Connector thread started");
-	}
-
-	public void shutdown() throws IOException, TimeoutException {
-		running = false;
-		if (connectorThread != null) {
-			connectorThread.interrupt();
-		}
-		if (consumer != null) {
-			consumer.close();
-		}
-		System.out.println("Application shutting down");
+		};
 	}
 }

@@ -21,24 +21,41 @@ public class Consumer {
     private static final String QUEUE_NAME = "sums";
 
     public void start() throws IOException, TimeoutException {
-        ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost("localhost");
-        connection = factory.newConnection();
-        channel = connection.createChannel();
-        channel.queueDeclare(QUEUE_NAME, false, false, false, null);
-
-        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-            String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
-            try {
-                JsonNode jsonNode = objectMapper.readTree(message);
-                int number = jsonNode.get("result").asInt();
-                numberQueue.put(number);
-            } catch (Exception e) {
-                logger.error("Failed to process message: " + message, e);
+        try {
+            ConnectionFactory factory = new ConnectionFactory();
+            
+            // Get RabbitMQ host from environment variable or use default
+            String rabbitHost = System.getenv("SPRING_RABBITMQ_HOST");
+            if (rabbitHost == null || rabbitHost.isEmpty()) {
+                rabbitHost = "localhost";
             }
-        };
+            logger.info("Connecting to RabbitMQ at: {}", rabbitHost);
+            
+            factory.setHost(rabbitHost);
+            factory.setConnectionTimeout(5000); // 5 second timeout
+            
+            connection = factory.newConnection();
+            channel = connection.createChannel();
+            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
 
-        channel.basicConsume(QUEUE_NAME, true, deliverCallback, consumerTag -> {});
+            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
+                try {
+                    logger.info("Received message: {}", message);
+                    JsonNode jsonNode = objectMapper.readTree(message);
+                    int number = jsonNode.get("result").asInt();
+                    numberQueue.put(number);
+                } catch (Exception e) {
+                    logger.error("Failed to process message: {}", message, e);
+                }
+            };
+
+            channel.basicConsume(QUEUE_NAME, true, deliverCallback, consumerTag -> {});
+            logger.info("Started consuming from queue: {}", QUEUE_NAME);
+        } catch (Exception e) {
+            logger.error("Failed to connect to RabbitMQ: {}", e.getMessage());
+            throw e; // Rethrow to let the application handle it
+        }
     }
 
     public int getNextNumber() throws InterruptedException {
@@ -46,10 +63,10 @@ public class Consumer {
     }
 
     public void close() throws IOException, TimeoutException {
-        if (channel != null) {
+        if (channel != null && channel.isOpen()) {
             channel.close();
         }
-        if (connection != null) {
+        if (connection != null && connection.isOpen()) {
             connection.close();
         }
     }

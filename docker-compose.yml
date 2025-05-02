@@ -59,6 +59,8 @@ services:
       - SPRING_RABBITMQ_HOST=rabbitmq
     ports:
       - "8080:8080"
+    volumes:
+      - ./Sink_service/saveFile:/app/saveFile
     depends_on:
       rabbitmq:
         condition: service_healthy
