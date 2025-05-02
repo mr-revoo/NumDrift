@@ -1,11 +1,13 @@
 package com.NumDrift.Sink_service.services;
 
+import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Scanner;
 
+@Service
 public class FileReader {
     private static final String DIR_PATH = "./saveFile";
     private static final String FILE_PATH = DIR_PATH + File.separator + "save.txt";

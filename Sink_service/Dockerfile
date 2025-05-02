@@ -17,7 +17,16 @@ RUN mvn package -DskipTests
 # Use a smaller runtime image
 FROM eclipse-temurin:21-jre-jammy
 
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+# Copy the wait script
+COPY --chmod=755 wait-for-it.sh /usr/local/bin/wait-for-it.sh
 
 # Copy the JAR file from the build stage
 COPY --from=build /app/target/*.jar app.jar
@@ -25,5 +34,5 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose the application port
 EXPOSE 8080
 
-# Run the Spring Boot application
-ENTRYPOINT ["java", "-jar", "app.jar"] 
+# Wait for RabbitMQ to be ready before starting the application
+ENTRYPOINT ["sh", "-c", "wait-for-it.sh ${SPRING_RABBITMQ_HOST:-rabbitmq}:5672 --timeout=60 -- java -jar app.jar"] 
